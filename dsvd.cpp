@@ -25,14 +25,17 @@
  *    Reverse the roles of A and A' in the case that  m .le. n.
 */
 
+typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
+          Eigen::AutoAlign|Eigen::RowMajor> MatrixType;
+
 void mvprod(const size_t &row, const size_t &col, const Eigen::MatrixXd &M,
   double* x, double* y);
 
 int main(int argc, char const *argv[]) {
   int row = atoi(argv[1]);
   int col = atoi(argv[2]);
-  Eigen::MatrixXd H = Eigen::MatrixXd::Random(row,col);
-  int nev = 10;
+  MatrixType H = MatrixType::Random(row,col);
+  int nev = 4;
   double tol = 0.0e0;
   /*
   // row, col : dimension of the matrix
@@ -45,7 +48,11 @@ int main(int argc, char const *argv[]) {
   std::cout << "SVD on a " << row << " x " << col <<
     " random matrix, so we use n = " << n << std::endl;
   int ncv = 24;
-  assert( nev + 1 <= ncv );
+  if ( ncv < nev + 1 ) {
+    ncv = nev + 1;
+  } else if ( ncv > n ){
+    ncv = n;
+  }
   char bmat  = 'I';
   /* Ask for the NEV singular values of
    * largest magnitude
@@ -78,15 +85,13 @@ int main(int argc, char const *argv[]) {
   int *select;
   if( howmny == 'A' )
     select = new int[ncv];
-  int ldv = col;
-  double* v = new double[ldv*ncv];
-  int ldu = row;
-  double* u = new double[ldu*nev];
+  double* v = new double[col*ncv];
+  double* u = new double[row*nev];
   double* workl = new double[lworkl];
   double* workd = new double[3*n];
   double* resid = new double[n];
 
-  dsaupd_(&ido, &bmat, &col, &which[0], &nev, &tol, resid, &ncv, v, &ldv,
+  dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
           iparam, ipntr, workd, workl, &lworkl, &info);
   while( ido != 99 ){
     /* Perform matrix vector multiplications
@@ -98,7 +103,7 @@ int main(int argc, char const *argv[]) {
      * the input, and returns the result in
      * workd(ipntr(2)). */
     mvprod(row, col, H, workd+ipntr[0]-1, workd+ipntr[1]-1);
-    dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &ldv,
+    dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
             iparam, ipntr, workd, workl, &lworkl, &info);
   }
   if( info < 0 )
@@ -110,34 +115,29 @@ int main(int argc, char const *argv[]) {
                  "try increasing NCV." << std::endl;
   int rvec = 1;
   double* s = new double[2*ncv];
-  // double *d = new double[nev];
-  double *z = 0;
-  if( rvec )
-    z = new double[ldv*nev];
   double sigma;
-  dseupd_(&rvec, &howmny, select, s, z, &ldv, &sigma, &bmat, &col, which, &nev,
-          &tol, resid, &ncv, v, &ldv, iparam, ipntr, workd, workl, &lworkl, &info);
+  dseupd_(&rvec, &howmny, select, s, v, &col, &sigma, &bmat, &n, which, &nev,
+          &tol, resid, &ncv, v, &col, iparam, ipntr, workd, workl, &lworkl, &info);
   if ( info != 0 )
     std::cerr << "Error with dseupd, info = " << info << std::endl;
 
   std::cout << "Arpack results" << std::endl;
   std::cout << "Converged #" << iparam[4] << std::endl;
-  for (ptrdiff_t cnt = nev -1; cnt >= 0; cnt--) {
+  for (ptrdiff_t cnt = nev - 1; cnt >= 0; cnt--) {
     s[cnt] = std::sqrt(s[cnt]);
     std::cout << "S[" << cnt << "]: " << s[cnt] << std::endl;
   }
 
-  if( rvec )
-    delete [] z;
-  delete [] iparam;
-  delete [] ipntr;
-  if( howmny == 'A' )
-    delete [] select;
+  delete [] s;
   delete [] resid;
   delete [] workd;
   delete [] workl;
   delete [] u;
   delete [] v;
+  if( howmny == 'A' )
+    delete [] select;
+  delete [] ipntr;
+  delete [] iparam;
 
   std::cout << "Compare to LAPACK" << std::endl;
   double* U2 = new double[row*n];
