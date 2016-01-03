@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include <vector>
+#include <complex>
 #include <Eigen/Dense>
 #include "arpack.hpp"
 #include "lapack/lapack.h"
@@ -25,11 +26,12 @@
  *    Reverse the roles of A and A' in the case that  m .le. n.
 */
 
-typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
+typedef std::complex<double> ComplexType;
+typedef Eigen::Matrix<ComplexType, Eigen::Dynamic, Eigen::Dynamic,
           Eigen::AutoAlign|Eigen::RowMajor> MatrixType;
 
 void mvprod(const size_t &row, const size_t &col, const MatrixType &M,
-  double* x, double* y);
+  ComplexType* x, ComplexType* y);
 
 int main(int argc, char const *argv[]) {
   int row = atoi(argv[1]);
@@ -59,7 +61,7 @@ int main(int argc, char const *argv[]) {
    *   (indicated by which = 'LM')
    * See documentation in DSAUPD for the
    * other options SM, BE. */
-  char which[] = {'L','M'};
+  char which[] = {'L','R'};
   /* IDO  is the REVERSE COMMUNICATION parameter
    *      used to specify actions to be taken on return
    *      from DSAUPD. (See usage below.)
@@ -67,7 +69,7 @@ int main(int argc, char const *argv[]) {
    *      It MUST initially be set to 0 before the first
    *      call to DSAUPD. */
   int ido = 0;
-  int lworkl = ncv*(ncv+8);
+  int lworkl = 3*ncv*(ncv+2);
   int info = 0;
 
   int *iparam = new int[11];
@@ -85,14 +87,15 @@ int main(int argc, char const *argv[]) {
   int *select;
   if( howmny == 'A' )
     select = new int[ncv];
-  double* v = new double[col*ncv];
-  double* u = new double[row*nev];
-  double* workl = new double[lworkl];
-  double* workd = new double[3*n];
-  double* resid = new double[n];
+  ComplexType* v = new ComplexType[col*ncv];
+  ComplexType* u = new ComplexType[row*nev];
+  ComplexType* workl = new ComplexType[lworkl];
+  ComplexType* workd = new ComplexType[3*n];
+  ComplexType* resid = new ComplexType[n];
+  double *rwork = new double[ncv];
 
-  dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
-          iparam, ipntr, workd, workl, &lworkl, &info);
+  znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
+          iparam, ipntr, workd, workl, &lworkl, rwork, &info);
   while( ido != 99 ){
     /* Perform matrix vector multiplications
      *              w <--- A*x       (av())
@@ -103,8 +106,8 @@ int main(int argc, char const *argv[]) {
      * the input, and returns the result in
      * workd(ipntr(2)). */
     mvprod(row, col, H, workd+ipntr[0]-1, workd+ipntr[1]-1);
-    dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
-            iparam, ipntr, workd, workl, &lworkl, &info);
+    znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
+            iparam, ipntr, workd, workl, &lworkl, rwork, &info);
   }
   if( info < 0 )
     std::cerr << "Error with dsaupd, info = " << info << std::endl;
@@ -114,16 +117,20 @@ int main(int argc, char const *argv[]) {
     std::cerr << "No shifts could be applied during implicit Arnoldi update," <<
                  "try increasing NCV." << std::endl;
   int rvec = 1;
-  double* s = new double[2*ncv];
-  double sigma;
-  dseupd_(&rvec, &howmny, select, s, v, &col, &sigma, &bmat, &n, which, &nev,
-          &tol, resid, &ncv, v, &col, iparam, ipntr, workd, workl, &lworkl, &info);
+  ComplexType* s = new ComplexType[2*ncv];
+  ComplexType *workev = new ComplexType[3*ncv];
+  ComplexType sigma;
+  zneupd_(&rvec, &howmny, select, s, v, &col, &sigma, workev,
+          &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col, iparam, ipntr,
+          workd, workl, &lworkl, rwork, &info);
+  // dseupd_(&rvec, &howmny, select, s, v, &col, &sigma, &bmat, &n, which, &nev,
+          // &tol, resid, &ncv, v, &col, iparam, ipntr, workd, workl, &lworkl, &info);
   if ( info != 0 )
     std::cerr << "Error with dseupd, info = " << info << std::endl;
 
   std::cout << "Arpack results" << std::endl;
   std::cout << "Converged #" << iparam[4] << std::endl;
-  for (ptrdiff_t cnt = nev - 1; cnt >= 0; cnt--) {
+  for (size_t cnt = 0; cnt < nev; cnt++) {
     s[cnt] = std::sqrt(s[cnt]);
     std::cout << "S[" << cnt << "]: " << s[cnt] << std::endl;
   }
@@ -140,9 +147,9 @@ int main(int argc, char const *argv[]) {
   delete [] iparam;
 
   std::cout << "Compare to LAPACK" << std::endl;
-  double* U2 = new double[row*n];
+  ComplexType* U2 = new ComplexType[row*n];
   double* S2 = new double[n];
-  double* vT2 = new double[n*col];
+  ComplexType* vT2 = new ComplexType[n*col];
   matrixSVD(H.data(), row, col, U2, S2, vT2);
   for (size_t cnt = 0; cnt < nev; cnt++) {
     std::cout << "S[" << cnt << "]: " << S2[cnt] << std::endl;
@@ -150,19 +157,19 @@ int main(int argc, char const *argv[]) {
 }
 
 void mvprod(const size_t &row, const size_t &col, const MatrixType &M,
-  double* x, double* y){
-  Eigen::VectorXd work;
+  ComplexType* x, ComplexType* y){
+  Eigen::VectorXcd work;
   if ( row >= col ) {
-    Eigen::Map<Eigen::VectorXd> Vx(x, col);
-    Eigen::Map<Eigen::VectorXd> Vy(y, col);
+    Eigen::Map<Eigen::VectorXcd> Vx(x, col);
+    Eigen::Map<Eigen::VectorXcd> Vy(y, col);
     work = M * Vx;
-    Vy = M.transpose() * work;
-    memcpy(y, Vy.data(), col * sizeof(double) );
+    Vy = M.adjoint() * work;
+    memcpy(y, Vy.data(), col * sizeof(ComplexType) );
   } else {
-    Eigen::Map<Eigen::VectorXd> Vx(x, row);
-    Eigen::Map<Eigen::VectorXd> Vy(y, row);
-    work = M.transpose() * Vx;
+    Eigen::Map<Eigen::VectorXcd> Vx(x, row);
+    Eigen::Map<Eigen::VectorXcd> Vy(y, row);
+    work = M.adjoint() * Vx;
     Vy = M * work;
-    memcpy(y, Vy.data(), row * sizeof(double) );
+    memcpy(y, Vy.data(), row * sizeof(ComplexType) );
   }
 }
