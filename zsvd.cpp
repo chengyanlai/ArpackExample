@@ -51,7 +51,7 @@ int main(int argc, char const *argv[]) {
     " random matrix, so we use n = " << n << std::endl;
   int ncv = 24;
   if ( ncv < nev + 1 ) {
-    ncv = nev + 1;
+    ncv = (nev + n) / 2;
   } else if ( ncv > n ){
     ncv = n;
   }
@@ -81,7 +81,7 @@ int main(int argc, char const *argv[]) {
                       3 is shift-invert mode,
                       4 is buckling mode,
                       5 is Cayley mode. */
-  int *ipntr = new int[11];
+  int *ipntr = new int[14];
   // how many eigenvectors to calculate: 'A' => nev eigenvectors
   char howmny = 'A';
   int *select;
@@ -139,27 +139,27 @@ int main(int argc, char const *argv[]) {
       ComplexType* vta = new ComplexType[col];
       memcpy(vta, &v[col*cnt], col * sizeof(ComplexType));
       Eigen::Map<Eigen::VectorXcd> vt(vta, col);
-      VTs.row(nev - cnt - 1) = vt;
+      VTs.row(cnt) = vt;
       Eigen::VectorXcd u = H * vt;
       // std::cout << vt << std::endl;
       // std::cout << H.transpose()*H*vt << std::endl;
       u.normalize();
-      Us.col(nev - cnt - 1) = u;
+      Us.col(cnt) = u;
       delete [] vta;
     } else {
       ComplexType* ua = new ComplexType[row];
       memcpy(ua, &v[row*cnt], row * sizeof(ComplexType));
       Eigen::Map<Eigen::VectorXcd> u(ua, row);
-      Us.col(nev - cnt - 1) = u;
+      Us.col(cnt) = u;
       Eigen::VectorXcd vt = H.adjoint() * u;
       // std::cout << vt << std::endl;
       // std::cout << H.transpose()*H*vt << std::endl;
       vt.normalize();
-      VTs.row(nev - cnt - 1) = vt;
+      VTs.row(cnt) = vt;
       delete [] ua;
     }
   }
-  // std::cout << Us.col(0) << std::endl;
+  std::cout << Us.col(0) << std::endl;
   // std::cout << VTs.row(0) << std::endl;
   // std::cout << VTs*VTs.adjoint() << std::endl;
   // std::cout << Us.adjoint()*Us << std::endl;
@@ -181,7 +181,7 @@ int main(int argc, char const *argv[]) {
   matrixSVD(H.data(), row, col, U2, S2, vT2);
   Eigen::Map<MatrixType> Us2(U2, row, n);
   Eigen::Map<MatrixType> VTs2(vT2, n, col);
-  // std::cout << Us2.col(0) << std::endl;
+  std::cout << Us2.col(0) << std::endl;
   // std::cout << VTs2.row(0) << std::endl;
   // std::cout << Us2.adjoint()*Us2 << std::endl;
   // std::cout << VTs2*VTs2.adjoint() << std::endl;
