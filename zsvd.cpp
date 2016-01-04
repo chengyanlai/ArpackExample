@@ -87,14 +87,13 @@ int main(int argc, char const *argv[]) {
   int *select;
   if( howmny == 'A' )
     select = new int[ncv];
-  ComplexType* v = new ComplexType[col*ncv];
-  ComplexType* u = new ComplexType[row*nev];
+  ComplexType* v = new ComplexType[n*ncv];
   ComplexType* workl = new ComplexType[lworkl];
   ComplexType* workd = new ComplexType[3*n];
   ComplexType* resid = new ComplexType[n];
   double *rwork = new double[ncv];
 
-  znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
+  znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &n,
           iparam, ipntr, workd, workl, &lworkl, rwork, &info);
   while( ido != 99 ){
     /* Perform matrix vector multiplications
@@ -106,7 +105,7 @@ int main(int argc, char const *argv[]) {
      * the input, and returns the result in
      * workd(ipntr(2)). */
     mvprod(row, col, H, workd+ipntr[0]-1, workd+ipntr[1]-1);
-    znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
+    znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &n,
             iparam, ipntr, workd, workl, &lworkl, rwork, &info);
   }
   if( info < 0 )
@@ -120,8 +119,8 @@ int main(int argc, char const *argv[]) {
   ComplexType* s = new ComplexType[2*ncv];
   ComplexType *workev = new ComplexType[3*ncv];
   ComplexType sigma;
-  zneupd_(&rvec, &howmny, select, s, v, &col, &sigma, workev,
-          &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col, iparam, ipntr,
+  zneupd_(&rvec, &howmny, select, s, v, &n, &sigma, workev,
+          &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &n, iparam, ipntr,
           workd, workl, &lworkl, rwork, &info);
   // dseupd_(&rvec, &howmny, select, s, v, &col, &sigma, &bmat, &n, which, &nev,
           // &tol, resid, &ncv, v, &col, iparam, ipntr, workd, workl, &lworkl, &info);
@@ -130,16 +129,45 @@ int main(int argc, char const *argv[]) {
 
   std::cout << "Arpack results" << std::endl;
   std::cout << "Converged #" << iparam[4] << std::endl;
+  MatrixType Us(row,nev);
+  MatrixType VTs(nev,col);
   for (size_t cnt = 0; cnt < nev; cnt++) {
     s[cnt] = std::sqrt(s[cnt]);
     std::cout << "S[" << cnt << "]: " << s[cnt] << std::endl;
+    /* NOTE: Calculate left singular vectors */
+    if ( row >= col ) {
+      ComplexType* vta = new ComplexType[col];
+      memcpy(vta, &v[col*cnt], col * sizeof(ComplexType));
+      Eigen::Map<Eigen::VectorXcd> vt(vta, col);
+      VTs.row(nev - cnt - 1) = vt;
+      Eigen::VectorXcd u = H * vt;
+      // std::cout << vt << std::endl;
+      // std::cout << H.transpose()*H*vt << std::endl;
+      u.normalize();
+      Us.col(nev - cnt - 1) = u;
+      delete [] vta;
+    } else {
+      ComplexType* ua = new ComplexType[row];
+      memcpy(ua, &v[row*cnt], row * sizeof(ComplexType));
+      Eigen::Map<Eigen::VectorXcd> u(ua, row);
+      Us.col(nev - cnt - 1) = u;
+      Eigen::VectorXcd vt = H.adjoint() * u;
+      // std::cout << vt << std::endl;
+      // std::cout << H.transpose()*H*vt << std::endl;
+      vt.normalize();
+      VTs.row(nev - cnt - 1) = vt;
+      delete [] ua;
+    }
   }
+  // std::cout << Us.col(0) << std::endl;
+  // std::cout << VTs.row(0) << std::endl;
+  // std::cout << VTs*VTs.adjoint() << std::endl;
+  // std::cout << Us.adjoint()*Us << std::endl;
 
   delete [] s;
   delete [] resid;
   delete [] workd;
   delete [] workl;
-  delete [] u;
   delete [] v;
   if( howmny == 'A' )
     delete [] select;
@@ -151,9 +179,18 @@ int main(int argc, char const *argv[]) {
   double* S2 = new double[n];
   ComplexType* vT2 = new ComplexType[n*col];
   matrixSVD(H.data(), row, col, U2, S2, vT2);
+  Eigen::Map<MatrixType> Us2(U2, row, n);
+  Eigen::Map<MatrixType> VTs2(vT2, n, col);
+  // std::cout << Us2.col(0) << std::endl;
+  // std::cout << VTs2.row(0) << std::endl;
+  // std::cout << Us2.adjoint()*Us2 << std::endl;
+  // std::cout << VTs2*VTs2.adjoint() << std::endl;
   for (size_t cnt = 0; cnt < nev; cnt++) {
     std::cout << "S[" << cnt << "]: " << S2[cnt] << std::endl;
   }
+  delete [] U2;
+  delete [] S2;
+  delete [] vT2;
 }
 
 void mvprod(const size_t &row, const size_t &col, const MatrixType &M,

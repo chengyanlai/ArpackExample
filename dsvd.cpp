@@ -134,8 +134,6 @@ int main(int argc, char const *argv[]) {
       Eigen::Map<Eigen::VectorXd> vt(vta, col);
       VTs.row(nev - cnt - 1) = vt;
       Eigen::VectorXd u = H * vt;
-      // std::cout << vt << std::endl;
-      // std::cout << H.transpose()*H*vt << std::endl;
       u.normalize();
       Us.col(nev - cnt - 1) = u;
       delete [] vta;
@@ -145,15 +143,15 @@ int main(int argc, char const *argv[]) {
       Eigen::Map<Eigen::VectorXd> u(ua, row);
       Us.col(nev - cnt - 1) = u;
       Eigen::VectorXd vt = H.transpose() * u;
-      // std::cout << vt << std::endl;
-      // std::cout << H.transpose()*H*vt << std::endl;
       vt.normalize();
       VTs.row(nev - cnt - 1) = vt;
       delete [] ua;
     }
   }
-  std::cout << VTs*VTs.transpose() << std::endl;
-  std::cout << Us.transpose()*Us << std::endl;
+  // std::cout << Us.col(0) << std::endl;
+  // std::cout << VTs.row(0) << std::endl;
+  // std::cout << VTs*VTs.transpose() << std::endl;
+  // std::cout << Us.transpose()*Us << std::endl;
   // std::cout << Us*Us.transpose() << std::endl;
 
   delete [] s;
@@ -173,8 +171,10 @@ int main(int argc, char const *argv[]) {
   matrixSVD(H.data(), row, col, U2, S2, vT2);
   Eigen::Map<MatrixType> Us2(U2, row, n);
   Eigen::Map<MatrixType> VTs2(vT2, n, col);
-  std::cout << Us2.transpose()*Us2 << std::endl;
-  std::cout << VTs2*VTs2.transpose() << std::endl;
+  // std::cout << Us2.col(0) << std::endl;
+  // std::cout << VTs2.row(0) << std::endl;
+  // std::cout << Us2.transpose()*Us2 << std::endl;
+  // std::cout << VTs2*VTs2.transpose() << std::endl;
   for (size_t cnt = 0; cnt < nev; cnt++) {
     std::cout << "S[" << cnt << "]: " << S2[cnt] << std::endl;
   }
