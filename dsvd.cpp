@@ -85,13 +85,12 @@ int main(int argc, char const *argv[]) {
   int *select;
   if( howmny == 'A' )
     select = new int[ncv];
-  double* v = new double[col*ncv];
-  double* u = new double[row*nev];
+  double* v = new double[n*ncv];
   double* workl = new double[lworkl];
   double* workd = new double[3*n];
   double* resid = new double[n];
 
-  dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
+  dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &n,
           iparam, ipntr, workd, workl, &lworkl, &info);
   while( ido != 99 ){
     /* Perform matrix vector multiplications
@@ -103,7 +102,7 @@ int main(int argc, char const *argv[]) {
      * the input, and returns the result in
      * workd(ipntr(2)). */
     mvprod(row, col, H, workd+ipntr[0]-1, workd+ipntr[1]-1);
-    dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &col,
+    dsaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &n,
             iparam, ipntr, workd, workl, &lworkl, &info);
   }
   if( info < 0 )
@@ -116,23 +115,51 @@ int main(int argc, char const *argv[]) {
   int rvec = 1;
   double* s = new double[2*ncv];
   double sigma;
-  dseupd_(&rvec, &howmny, select, s, v, &col, &sigma, &bmat, &n, which, &nev,
-          &tol, resid, &ncv, v, &col, iparam, ipntr, workd, workl, &lworkl, &info);
+  dseupd_(&rvec, &howmny, select, s, v, &n, &sigma, &bmat, &n, which, &nev,
+          &tol, resid, &ncv, v, &n, iparam, ipntr, workd, workl, &lworkl, &info);
   if ( info != 0 )
     std::cerr << "Error with dseupd, info = " << info << std::endl;
 
   std::cout << "Arpack results" << std::endl;
   std::cout << "Converged #" << iparam[4] << std::endl;
+  MatrixType Us(row,nev);
+  MatrixType VTs(nev,col);
   for (ptrdiff_t cnt = nev - 1; cnt >= 0; cnt--) {
     s[cnt] = std::sqrt(s[cnt]);
     std::cout << "S[" << cnt << "]: " << s[cnt] << std::endl;
+    /* NOTE: Calculate left singular vectors */
+    if ( row >= col ) {
+      double* vta = new double[col];
+      memcpy(vta, &v[col*cnt], col * sizeof(double));
+      Eigen::Map<Eigen::VectorXd> vt(vta, col);
+      VTs.row(nev - cnt - 1) = vt;
+      Eigen::VectorXd u = H * vt;
+      // std::cout << vt << std::endl;
+      // std::cout << H.transpose()*H*vt << std::endl;
+      u.normalize();
+      Us.col(nev - cnt - 1) = u;
+      delete [] vta;
+    } else {
+      double* ua = new double[row];
+      memcpy(ua, &v[row*cnt], row * sizeof(double));
+      Eigen::Map<Eigen::VectorXd> u(ua, row);
+      Us.col(nev - cnt - 1) = u;
+      Eigen::VectorXd vt = H.transpose() * u;
+      // std::cout << vt << std::endl;
+      // std::cout << H.transpose()*H*vt << std::endl;
+      vt.normalize();
+      VTs.row(nev - cnt - 1) = vt;
+      delete [] ua;
+    }
   }
+  std::cout << VTs*VTs.transpose() << std::endl;
+  std::cout << Us.transpose()*Us << std::endl;
+  // std::cout << Us*Us.transpose() << std::endl;
 
   delete [] s;
   delete [] resid;
   delete [] workd;
   delete [] workl;
-  delete [] u;
   delete [] v;
   if( howmny == 'A' )
     delete [] select;
@@ -144,9 +171,16 @@ int main(int argc, char const *argv[]) {
   double* S2 = new double[n];
   double* vT2 = new double[n*col];
   matrixSVD(H.data(), row, col, U2, S2, vT2);
+  Eigen::Map<MatrixType> Us2(U2, row, n);
+  Eigen::Map<MatrixType> VTs2(vT2, n, col);
+  std::cout << Us2.transpose()*Us2 << std::endl;
+  std::cout << VTs2*VTs2.transpose() << std::endl;
   for (size_t cnt = 0; cnt < nev; cnt++) {
     std::cout << "S[" << cnt << "]: " << S2[cnt] << std::endl;
   }
+  delete [] U2;
+  delete [] S2;
+  delete [] vT2;
 }
 
 void mvprod(const size_t &row, const size_t &col, const MatrixType &M,
