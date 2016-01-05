@@ -1,8 +1,7 @@
-#ifndef LAPACK_WRAPPER_H
-#define LAPACK_WRAPPER_H
-#include <stdexcept>
-#include <cstdint>
+#ifndef __LAPACK_WRAPPER_H__
+#define __LAPACK_WRAPPER_H__
 #include <complex>
+
 extern "C" {
 // BLAS functions
 void dgemm_(const char *transa, const char *transb, const int32_t *m, const int32_t *n, const int32_t *k,
@@ -33,6 +32,9 @@ void zgesvd_( const char* jobu, const char* jobvt, const int32_t* m,
 void dsyev_( const char* jobz, const char* uplo, const int32_t* n, double* a,
              const int32_t* lda, double* w, double* work, const int32_t* lwork,
              int32_t* info );
+void zheev_( const char* jobz, const char* uplo, const int32_t* n, std::complex<double>* a,
+             const int32_t* lda, double* w, std::complex<double>* work, const int32_t* lwork,
+             const double* rwork, int32_t* info );
 
 void dstev_( const char* jobz, const int32_t* n, const double* d, const double* e, const double* z,
              const int32_t* ldaz, const double* work, int32_t* info );
@@ -63,6 +65,11 @@ inline void dsyev( const char* jobz, const char* uplo, const int32_t* n, double*
              int32_t* info )
 { dsyev_(  jobz,  uplo,  n,  a, lda, w,  work,  lwork, info ); }
 
+inline void zheev( const char* jobz, const char* uplo, const int32_t* n, std::complex<double>* a,
+             const int32_t* lda, double* w, std::complex<double>* work, const int32_t* lwork,
+             double* rwork, int32_t* info )
+{ zheev_(  jobz,  uplo,  n,  a, lda, w,  work,  lwork, rwork, info ); }
+
 inline void dgesvd( const char* jobu, const char* jobvt, const int32_t* m,
               const int32_t* n, double* a, const int32_t* lda, double* s,
               double* u, const int32_t* ldu, double* vt, const int32_t* ldvt,
@@ -91,4 +98,5 @@ inline void dstev( const char* jobz, const int32_t* n, const double* d, const do
 {
   dstev_( jobz, n, d, e, z, ldaz, work, info );
 }
-#endif
+
+#endif /* end of include guard: __LAPACK_WRAPPER_H__ */

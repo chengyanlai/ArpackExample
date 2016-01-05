@@ -11,93 +11,7 @@
   #include "lapack_wrapper.h"
 #endif
 
-void matrixMul(double* A, double* B, int M, int N, int K, double* C)
-{
-    double alpha = 1, beta = 0;
-    dgemm((char*)"N", (char*)"N", &N, &M, &K, &alpha, B, &N, A, &K, &beta, C, &N);
-}
-
-void diagMM(double* diag, double* mat, size_t M, size_t N)
-{
-    for(size_t i = 0; i < M; i++)
-        vectorScal(diag[i], &(mat[i * N]), N);
-}
-
-// void vectorAdd(const double a, double* Y, double* X, size_t N){    // Y = Y + a * X
-void vectorAdd(double* Y, double* X, size_t N)
-{    // Y = Y + X
-    double a = 1.0;
-    int inc = 1;
-    int64_t left = N;
-    size_t offset = 0;
-    int chunk;
-    while(left > 0){
-        if(left > INT_MAX)
-            chunk = INT_MAX;
-        else
-            chunk = left;
-        daxpy(&chunk, &a, X + offset, &inc, Y + offset, &inc);
-        offset += chunk;
-        left -= INT_MAX;
-    }
-}
-
-void vectorScal(double a, double* X, size_t N)
-{
-    int inc = 1;
-    int64_t left = N;
-    size_t offset = 0;
-    int chunk;
-    while(left > 0){
-        if(left > INT_MAX)
-            chunk = INT_MAX;
-        else
-            chunk = left;
-        dscal(&chunk, &a, X + offset, &inc);
-        offset += chunk;
-        left -= INT_MAX;
-    }
-}
-
-double vectorSum(double* X, size_t N, int inc)
-{
-    double sum = 0;
-    size_t idx = 0;
-    for(size_t i = 0; i < N; i++){
-        sum += X[idx];
-        idx += inc;
-    }
-    return sum;
-}
-
-double vectorNorm(double* X, size_t N, int inc)
-{
-    double norm2 = 0;
-    double tmp = 0;
-    int64_t left = N;
-    size_t offset = 0;
-    int chunk;
-    while(left > 0)
-    {
-        if(left > INT_MAX)
-            chunk = INT_MAX;
-        else
-            chunk = left;
-        tmp = dnrm2(&chunk, X + offset, &inc);
-        norm2 += tmp * tmp;
-        offset += chunk;
-        left -= INT_MAX;
-    }
-    return sqrt(norm2);
-}
-
-void vectorExp(double a, double* X, size_t N)
-{
-    for(size_t i = 0; i < N; i++)
-        X[i] = exp(a * X[i]);
-}
-
-void syDiag(double* Kij, int N, double* Eig, double* EigVec)
+void matrixEigh(double* Kij, int N, double* Eig, double* EigVec)
 {
     memcpy(EigVec, Kij, N * N * sizeof(double));
     int ldA = N;
@@ -121,28 +35,30 @@ void syDiag(double* Kij, int N, double* Eig, double* EigVec)
     free(work);
 }
 
-void orthoRandomize(double* elem, int M, int N)
+void matrixEigh(std::complex<double>* Kij, int N, double* Eig, std::complex<double>* EigVec)
 {
-    int eleNum = M*N;
-    double *random = (double*)malloc(eleNum * sizeof(double));
-    for(size_t cnt = 0; cnt < eleNum; cnt++){
-        random[cnt] = ((double)rand()) / (double)RAND_MAX;
+    memcpy(EigVec, Kij, N * N * sizeof(std::complex<double>));
+    int ldA = N;
+    int lwork = -1;
+    std::complex<double> worktest;
+    double* rwork = (double*)malloc( (3*N-2) * sizeof(double) );
+    int info;
+    zheev((char*)"V", (char*)"U", &N, EigVec, &ldA, Eig, &worktest, &lwork, rwork, &info);
+    if(info != 0){
+        std::ostringstream err;
+        err << "\nError in Lapack function 'dsyev': Lapack INFO = " << info << "\n";
+        throw std::runtime_error(err.str());
     }
-    // elemRand(random, M * N, false);
-    int min = M < N ? M : N;
-    double *S = (double*)malloc(min*sizeof(double));
-    if(M <= N){
-        double *U = (double*)malloc(M * min * sizeof(double));
-        matrixSVD(random, M, N, U, S, elem);
-        free(U);
+    lwork = (int)worktest.real();
+    std::complex<double>* work= (std::complex<double>*)malloc(sizeof(double)*lwork);
+    zheev((char*)"V", (char*)"U", &N, EigVec, &ldA, Eig, work, &lwork, rwork, &info);
+    if(info != 0){
+        std::ostringstream err;
+        err << "\n Error in Lapack function 'dsyev': Lapack INFO = " << info << "\n";
+        throw std::runtime_error(err.str());
     }
-    else{
-        double *VT = (double*)malloc(min * N * sizeof(double));
-        matrixSVD(random, M, N, elem, S, VT);
-        free(VT);
-    }
-    free(random);
-    free(S);
+    free(work);
+    free(rwork);
 }
 
 void matrixSVD(double* Mij_ori, int M, int N, double* U, double* S, double* vT)

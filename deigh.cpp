@@ -85,9 +85,12 @@ int main(int argc, char const *argv[]) {
   Eigen::MatrixXd Hd(H);
   double *Eig = new double[n];
   double *EigVec = new double[n*n];
-  syDiag(Hd.data(), n, Eig, EigVec);
+  matrixEigh(Hd.data(), n, Eig, EigVec);
   std::cout << "E[0]: " << Eig[0] << std::endl;
   std::cout << "E[1]: " << Eig[1] << std::endl;
+  delete [] EigVec;
+  delete [] Eig;
+  
   return 0;
 }
 

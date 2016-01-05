@@ -3,6 +3,7 @@
 #include <vector>
 #include <Eigen/Sparse>
 #include "arpack.hpp"
+#include "lapack/lapack.h"
 
 typedef std::complex<double> ComplexType;
 typedef Eigen::Matrix<ComplexType, Eigen::Dynamic, 1, Eigen::AutoAlign> CVector;
@@ -203,6 +204,15 @@ int main(int argc, char const *argv[]) {
   delete [] v;
   delete [] resid;
 
+  std::cout << "Compare to LAPCK" << std::endl;
+  Eigen::MatrixXcd Hd(H);
+  double *Eig = new double[n];
+  ComplexType *EigVec = new ComplexType[n*n];
+  matrixEigh(Hd.data(), n, Eig, EigVec);
+  std::cout << "E[0]: " << Eig[0] << std::endl;
+  std::cout << "E[1]: " << Eig[1] << std::endl;
+  delete [] EigVec;
+  delete [] Eig;
   return 0;
 }
 
