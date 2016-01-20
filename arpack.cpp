@@ -21,10 +21,10 @@ typedef Eigen::Matrix<ComplexType, Eigen::Dynamic, 1,
           Eigen::AutoAlign> zVectorType;
 
 void arpackSVD(const size_t &r, const size_t &c, const dMatrixType &H,
-  const size_t &k, dMatrixType &U, dMatrixType &VT, dMatrixType &SD,
+  const size_t &k, dMatrixType &U, dMatrixType &vT, dMatrixType &SD,
   const double &tolerance = 0.0e0);
 void arpackSVD(const size_t &r, const size_t &c, const zMatrixType &H,
-  const size_t &k, zMatrixType &U, zMatrixType &VT, dMatrixType &SD,
+  const size_t &k, zMatrixType &U, zMatrixType &vT, dMatrixType &SD,
   const double &tolerance = 0.0e0);
 
 void mvprod(const size_t &row, const size_t &col, const dMatrixType &M,
@@ -33,42 +33,59 @@ void mvprod(const size_t &row, const size_t &col, const zMatrixType &M,
   ComplexType* x, ComplexType* y);
 
 int main(int argc, char const *argv[]) {
+  std::cout << "Running arpack.app" << std::endl;
+  std::cout << std::endl << "Real Type" << std::endl;
   int row = atoi(argv[1]);
   int col = atoi(argv[2]);
   int k = atoi(argv[3]);
   dMatrixType H = dMatrixType::Random(row,col);
-  dMatrixType U, S, VT;
-  arpackSVD(row, col, H, k, U, VT, S, 0.0e0);
-
-  std::cout << "Compare to LAPACK(left column)" << std::endl;
+  dMatrixType U, S, vT;
+  arpackSVD(row, col, H, k, U, vT, S, 0.0e0);
+  std::cout << "Compare to LAPACK(left column):" << std::endl;
   int n = row <= col ? row : col;
   double* U2 = new double[row*n];
   double* S2 = new double[n];
   double* vT2 = new double[n*col];
   matrixSVD(H.data(), row, col, U2, S2, vT2);
   Eigen::Map<dMatrixType> Us2(U2, row, n);
-  Eigen::Map<dMatrixType> VTs2(vT2, n, col);
+  Eigen::Map<dMatrixType> vTs2(vT2, n, col);
   Eigen::Map<dVectorType> Sv(S2, n);
   for (size_t i = 0; i < k; i++) {
     std::cout << std::scientific << Sv(i) << " " << S(i,i) << std::endl;
   }
+  std::cout << "check unitary" << std::endl;
+  std::cout << "from arpack - U" << std::endl;
+  std::cout << U.adjoint() * U << std::endl;
+  std::cout << "from arpack - vT" << std::endl;
+  std::cout << vT * vT.adjoint() << std::endl;
+  std::cout << "from lapack - vT" << std::endl;
+  std::cout << vTs2 * vTs2.adjoint() << std::endl;
+
+  std::cout << std::endl << "Complex Type" << std::endl;
 
   zMatrixType zH = zMatrixType::Random(row,col);
-  zMatrixType zU, zVT;
+  zMatrixType zU, zvT;
   dMatrixType zS;
-  arpackSVD(row, col, zH, k, zU, zVT, zS, 0.0e0);
-
+  arpackSVD(row, col, zH, k, zU, zvT, zS, 0.0e0);
   std::cout << "Compare to LAPACK(left column)" << std::endl;
   ComplexType* zU2 = new ComplexType[row*n];
   double* zS2 = new double[n];
   ComplexType* zvT2 = new ComplexType[n*col];
   matrixSVD(zH.data(), row, col, zU2, zS2, zvT2);
   Eigen::Map<zMatrixType> zUs2(zU2, row, n);
-  Eigen::Map<zMatrixType> zVTs2(zvT2, n, col);
+  Eigen::Map<zMatrixType> zvTs2(zvT2, n, col);
   Eigen::Map<dVectorType> zSv(zS2, n);
   for (size_t i = 0; i < k; i++) {
     std::cout << std::scientific << zSv(i) << " " << zS(i,i) << std::endl;
   }
+  std::cout << "check unitary" << std::endl;
+  std::cout << "from arpack - U" << std::endl;
+  std::cout << zU.adjoint() * zU << std::endl;
+  std::cout << "from arpack - vT" << std::endl;
+  std::cout << zvT * zvT.adjoint() << std::endl;
+  std::cout << "from lapack - vT" << std::endl;
+  std::cout << zvTs2 * zvTs2.adjoint() << std::endl;
+
   delete [] zvT2;
   delete [] zS2;
   delete [] zU2;
@@ -78,7 +95,7 @@ int main(int argc, char const *argv[]) {
 }
 
 void arpackSVD(const size_t &r, const size_t &c, const dMatrixType &H,
-  const size_t &k, dMatrixType &U, dMatrixType &VT, dMatrixType &SD,
+  const size_t &k, dMatrixType &U, dMatrixType &vT, dMatrixType &SD,
   const double &tolerance){
   int row = r;
   int col = c;
@@ -140,18 +157,18 @@ void arpackSVD(const size_t &r, const size_t &c, const dMatrixType &H,
 
   U = dMatrixType::Zero(row,nev);
   SD = dMatrixType::Zero(nev,nev);
-  VT = dMatrixType::Zero(nev,col);
+  vT = dMatrixType::Zero(nev,col);
   for (ptrdiff_t cnt = nev - 1; cnt >= 0; cnt--) {
     SD(nev - cnt - 1,nev - cnt - 1) = std::sqrt(s[cnt]);
     if ( row >= col ) {
-      double* vta = new double[col];
-      memcpy(vta, &v[col*cnt], col * sizeof(double));
-      Eigen::Map<dVectorType> work1(vta, col);
-      VT.row(nev - cnt - 1) = work1;
+      double* vTa = new double[col];
+      memcpy(vTa, &v[col*cnt], col * sizeof(double));
+      Eigen::Map<dVectorType> work1(vTa, col);
+      vT.row(nev - cnt - 1) = work1;
       dVectorType work2 = H * work1;
       work2.normalize();
       U.col(nev - cnt - 1) = work2;
-      delete [] vta;
+      delete [] vTa;
     } else {
       double* ua = new double[row];
       memcpy(ua, &v[row*cnt], row * sizeof(double));
@@ -159,7 +176,7 @@ void arpackSVD(const size_t &r, const size_t &c, const dMatrixType &H,
       U.col(nev - cnt - 1) = work1;
       dVectorType work2 = H.transpose() * work1;
       work2.normalize();
-      VT.row(nev - cnt - 1) = work2;
+      vT.row(nev - cnt - 1) = work2;
       delete [] ua;
     }
   }
@@ -193,7 +210,7 @@ void mvprod(const size_t &row, const size_t &col, const dMatrixType &M,
 }
 
 void arpackSVD(const size_t &r, const size_t &c, const zMatrixType &H,
-  const size_t &k, zMatrixType &U, zMatrixType &VT, dMatrixType &SD,
+  const size_t &k, zMatrixType &U, zMatrixType &vT, dMatrixType &SD,
   const double &tolerance){
   int row = r;
   int col = c;
@@ -254,19 +271,19 @@ void arpackSVD(const size_t &r, const size_t &c, const zMatrixType &H,
     std::cerr << "Error with zneupd, info = " << info << std::endl;
   U = zMatrixType::Zero(row,nev);
   SD = dMatrixType::Zero(nev,nev);
-  VT = zMatrixType::Zero(nev,col);
+  vT = zMatrixType::Zero(nev,col);
   for (size_t cnt = 0; cnt < nev; cnt++) {
     SD(cnt,cnt) = std::sqrt(s[cnt]).real();
     /* NOTE: Calculate left singular vectors */
     if ( row >= col ) {
-      ComplexType* vta = new ComplexType[col];
-      memcpy(vta, &v[col*cnt], col * sizeof(ComplexType));
-      Eigen::Map<zVectorType> work1(vta, col);
-      VT.row(cnt) = work1;
+      ComplexType* vTa = new ComplexType[col];
+      memcpy(vTa, &v[col*cnt], col * sizeof(ComplexType));
+      Eigen::Map<zVectorType> work1(vTa, col);
+      vT.row(cnt) = work1;
       zVectorType work2 = H * work1;
       work2.normalize();
       U.col(cnt) = work2;
-      delete [] vta;
+      delete [] vTa;
     } else {
       ComplexType* ua = new ComplexType[row];
       memcpy(ua, &v[row*cnt], row * sizeof(ComplexType));
@@ -274,7 +291,7 @@ void arpackSVD(const size_t &r, const size_t &c, const zMatrixType &H,
       U.col(cnt) = work1;
       zVectorType work2 = H.adjoint() * work1;
       work2.normalize();
-      VT.row(cnt) = work2;
+      vT.row(cnt) = work2;
       delete [] ua;
     }
   }
