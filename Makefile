@@ -6,10 +6,30 @@ ifeq "$(NODE)" ""
 NODE = $(shell uname -n)
 endif
 
-EIGENINC = /Volumes/Files/GitHub/eigen
-LAPACK = -lblas -llapack -lm -larpack
-
-CC = clang++ -O3 -m64 -std=c++11 -stdlib=libc++ -I./ -I$(EIGENINC)
+ifeq ("$(OS)", "Darwin")
+	EIGENINC = /Volumes/Files/GitHub/eigen
+	MKLROOT =
+	LAPACK =  -lblas -llapack -lm -larpack
+	CC = clang++ -O3 -m64 -std=c++11 -stdlib=libc++ -I./ -I$(EIGENINC)
+else ifeq ("$(NODE)", "kagome.rcc.ucmerced.edu")
+	EIGENINC = /usr/local/include
+	MKLROOT = /condensate1/intel/composer_xe_2015.2.164/mkl
+	LAPACK = $(MKLROOT)/lib/intel64/libmkl_blas95_lp64.a \
+	$(MKLROOT)/lib/intel64/libmkl_lapack95_lp64.a -Wl,--start-group \
+	$(MKLROOT)/lib/intel64/libmkl_intel_lp64.a \
+	$(MKLROOT)/lib/intel64/libmkl_sequential.a $(MKLROOT)/lib/intel64/libmkl_core.a \
+	-Wl,--end-group -lpthread -lm -larpack
+	CC = icpc -O3 -Wall -std=c++11 -I./ -I$(EIGENINC) -DMKL
+else ifeq ("$(NODE)", "edgestate.rcc.ucmerced.edu")
+	EIGENINC = /usr/local/include
+	MKLROOT = /opt/intel/composer_xe_2015.2.164/mkl
+	LAPACK = $(MKLROOT)/lib/intel64/libmkl_blas95_lp64.a \
+	$(MKLROOT)/lib/intel64/libmkl_lapack95_lp64.a -Wl,--start-group \
+	$(MKLROOT)/lib/intel64/libmkl_intel_lp64.a \
+	$(MKLROOT)/lib/intel64/libmkl_sequential.a $(MKLROOT)/lib/intel64/libmkl_core.a \
+	-Wl,--end-group -lpthread -lm -larpack
+	CC = icpc -O3 -Wall -std=c++11 -I./ -I$(EIGENINC) -DMKL
+endif
 
 .PHONY: all clean
 
@@ -26,3 +46,6 @@ build/zeigh.app: zeigh.cpp build/lapack.o
 
 build/deigh.app: deigh.cpp build/lapack.o
 	$(CC) -o $@ $< build/lapack.o $(LAPACK)
+
+clean:
+	rm build/*

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdexcept>
 #include "lapack.h"
 #ifdef MKL
   typedef std::complex<double> DCOMP;
@@ -11,8 +12,7 @@
   #include "lapack_wrapper.h"
 #endif
 
-void matrixEigh(double* Kij, int N, double* Eig, double* EigVec)
-{
+void matrixEigh(double* Kij, int N, double* Eig, double* EigVec){
     memcpy(EigVec, Kij, N * N * sizeof(double));
     int ldA = N;
     int lwork = -1;
@@ -35,8 +35,7 @@ void matrixEigh(double* Kij, int N, double* Eig, double* EigVec)
     free(work);
 }
 
-void matrixEigh(std::complex<double>* Kij, int N, double* Eig, std::complex<double>* EigVec)
-{
+void matrixEigh(std::complex<double>* Kij, int N, double* Eig, std::complex<double>* EigVec){
     memcpy(EigVec, Kij, N * N * sizeof(std::complex<double>));
     int ldA = N;
     int lwork = -1;
@@ -50,7 +49,7 @@ void matrixEigh(std::complex<double>* Kij, int N, double* Eig, std::complex<doub
         throw std::runtime_error(err.str());
     }
     lwork = (int)worktest.real();
-    std::complex<double>* work= (std::complex<double>*)malloc(sizeof(double)*lwork);
+    std::complex<double>* work = (std::complex<double>*)malloc(sizeof(std::complex<double>)*lwork);
     zheev((char*)"V", (char*)"U", &N, EigVec, &ldA, Eig, work, &lwork, rwork, &info);
     if(info != 0){
         std::ostringstream err;
@@ -61,8 +60,7 @@ void matrixEigh(std::complex<double>* Kij, int N, double* Eig, std::complex<doub
     free(rwork);
 }
 
-void matrixSVD(double* Mij_ori, int M, int N, double* U, double* S, double* vT)
-{
+void matrixSVD(double* Mij_ori, int M, int N, double* U, double* S, double* vT){
     double* Mij = (double*)malloc(M * N * sizeof(double));
     memcpy(Mij, Mij_ori, M * N * sizeof(double));
     int min = M < N ? M : N;    //min = min(M,N)
@@ -88,8 +86,7 @@ void matrixSVD(double* Mij_ori, int M, int N, double* U, double* S, double* vT)
     free(Mij);
 }
 
-void matrixSVD(std::complex<double>* Mij_ori, int M, int N, std::complex<double>* U, double* S, std::complex<double>* vT)
-{
+void matrixSVD(std::complex<double>* Mij_ori, int M, int N, std::complex<double>* U, double* S, std::complex<double>* vT){
   std::complex<double>* Mij = (std::complex<double>*)malloc(M * N * sizeof(std::complex<double>));
   memcpy(Mij, Mij_ori, M * N * sizeof(std::complex<double>));
   int min = M < N ? M : N;    //min = min(M,N)

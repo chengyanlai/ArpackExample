@@ -163,10 +163,10 @@ int main(int argc, char const *argv[]) {
 
   // not used if iparam[6] == 1
   ComplexType sigma;
-  ComplexType *workev = new ComplexType[3*ncv];
+  ComplexType *workev = new ComplexType[2*ncv];
   /*WORKEV  Double precision work array of dimension 3*NCV.  (WORKSPACE)*/
 
-  // first iteration
+  /* first iteration */
   znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &ldv,
           iparam, ipntr, workd, workl, &lworkl, rwork, &info);
 
