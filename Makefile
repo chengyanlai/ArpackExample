@@ -23,6 +23,7 @@ else ifeq ("$(NODE)", "kagome.rcc.ucmerced.edu")
 else ifeq ("$(NODE)", "edgestate.rcc.ucmerced.edu")
 	EIGENINC = /usr/local/include
 	MKLROOT = /opt/intel/composer_xe_2015.2.164/mkl
+	# LAPACK = -lmkl_rt -larpack
 	LAPACK = $(MKLROOT)/lib/intel64/libmkl_blas95_lp64.a \
 	$(MKLROOT)/lib/intel64/libmkl_lapack95_lp64.a -Wl,--start-group \
 	$(MKLROOT)/lib/intel64/libmkl_intel_lp64.a \
@@ -31,9 +32,11 @@ else ifeq ("$(NODE)", "edgestate.rcc.ucmerced.edu")
 	CC = icpc -O3 -Wall -std=c++11 -I./ -I$(EIGENINC) -DMKL
 endif
 
-.PHONY: all clean
+BUILD_DIR = ./build
 
-all: build/arpack.app build/zeigh.app build/deigh.app
+.PHONY: checkdirs all clean
+
+all: checkdirs build/arpack.app build/zeigh.app build/deigh.app
 
 build/lapack.o: lapack/lapack.cpp
 	$(CC) -c -o $@ $<
@@ -47,5 +50,10 @@ build/zeigh.app: zeigh.cpp build/lapack.o
 build/deigh.app: deigh.cpp build/lapack.o
 	$(CC) -o $@ $< build/lapack.o $(LAPACK)
 
+checkdirs: $(BUILD_DIR)
+
+$(BUILD_DIR):
+	@mkdir -p $@
+
 clean:
-	rm build/*
+	@rm -rf $(BUILD_DIR) build/*.o

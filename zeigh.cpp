@@ -4,6 +4,13 @@
 #include <Eigen/Sparse>
 #include "arpack.hpp"
 #include "lapack/lapack.h"
+#ifdef MKL
+  typedef std::complex<double> DCOMP;
+  #define MKL_Complex16 DCOMP
+  #include "mkl.h"
+#else
+  #include "lapack/lapack_wrapper.h"
+#endif
 
 typedef std::complex<double> ComplexType;
 typedef Eigen::Matrix<ComplexType, Eigen::Dynamic, 1, Eigen::AutoAlign> CVector;
@@ -17,8 +24,8 @@ int main(int argc, char const *argv[]) {
   std::vector<Eigen::Triplet<ComplexType> > Trip;
   H.reserve(2*n);
   for (size_t cnt = 0; cnt < n-1; cnt++) {
-    Trip.push_back(Eigen::Triplet<ComplexType>(cnt,cnt+1,ComplexType(-1.0e0,0.0e0)));
-    Trip.push_back(Eigen::Triplet<ComplexType>(cnt+1,cnt,ComplexType(-1.0e0,0.0e0)));
+    Trip.push_back(Eigen::Triplet<ComplexType>(cnt,cnt+1,ComplexType(-1.0e0, 1.0e0)));
+    Trip.push_back(Eigen::Triplet<ComplexType>(cnt+1,cnt,ComplexType(-1.0e0,-1.0e0)));
   }
   H.setFromTriplets(Trip.begin(), Trip.end());
   int nev = 2;
@@ -169,9 +176,15 @@ int main(int argc, char const *argv[]) {
   /* first iteration */
   znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &ldv,
           iparam, ipntr, workd, workl, &lworkl, rwork, &info);
-
+  // Parameters for zgemv
+  std::complex<double> alpha(1.0e0, 0.0e0);
+  std::complex<double> beta(0.0e0, 0.0e0);
+  int inc = 1;
+  Eigen::MatrixXcd A(H);
   while( ido != 99 ){
-    mvprod(n, H, workd+ipntr[0]-1, workd+ipntr[1]-1, 0.0e0);
+    zgemv((char*)"T", &n, &n, &alpha, A.data(), &n, workd+ipntr[0]-1, &inc, &beta,
+              workd+ipntr[1]-1, &inc);
+    // mvprod(n, H, workd+ipntr[0]-1, workd+ipntr[1]-1, 0.0e0);
     znaupd_(&ido, &bmat, &n, &which[0], &nev, &tol, resid, &ncv, v, &ldv,
             iparam, ipntr, workd, workl, &lworkl, rwork, &info);
   }

@@ -2,6 +2,7 @@
 #include <cassert>
 #include <vector>
 #include <complex>
+#include <stdexcept>
 #include <Eigen/Dense>
 #include "arpack.hpp"
 #include "lapack/lapack.h"
@@ -33,6 +34,9 @@ void mvprod(const size_t &row, const size_t &col, const zMatrixType &M,
   ComplexType* x, ComplexType* y);
 
 int main(int argc, char const *argv[]) {
+  if ( argc < 2 ) {
+    throw std::runtime_error("Please input 'row' col' 'nev'");
+  }
   std::cout << "Running arpack.app" << std::endl;
   std::cout << std::endl << "Real Type" << std::endl;
   int row = atoi(argv[1]);
