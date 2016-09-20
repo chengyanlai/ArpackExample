@@ -3,9 +3,16 @@
 #include <vector>
 #include <complex>
 #include <stdexcept>
+#include <cmath>
 #include <Eigen/Dense>
 #include "arpack.hpp"
 #include "lapack/lapack.h"
+#ifdef MKL
+  #include "mkl.h"
+#endif
+#ifndef NumCores
+#define NumCores 16
+#endif
 
 typedef std::complex<double> ComplexType;
 
@@ -34,19 +41,29 @@ void mvprod(const size_t &row, const size_t &col, const zMatrixType &M,
   ComplexType* x, ComplexType* y);
 
 int main(int argc, char const *argv[]) {
-  if ( argc < 2 ) {
-    throw std::runtime_error("Please input 'row' col' 'nev'");
-  }
+  Eigen::setNbThreads(NumCores);
+#ifdef MKL
+  mkl_set_dynamic(0);
+  mkl_set_num_threads(NumCores);
+#endif
+  std::cout << "Eigen3 uses " << Eigen::nbThreads() << " threads." << std::endl;
+  // if ( argc < 2 ) {
+  //   throw std::runtime_error("Please input 'row' col' 'nev'");
+  // }
   std::cout << "Running arpack.app" << std::endl;
   std::cout << std::endl << "Real Type" << std::endl;
   int row = atoi(argv[1]);
   int col = atoi(argv[2]);
   int k = atoi(argv[3]);
   dMatrixType H = dMatrixType::Random(row,col);
+  // dMatrixType U = dMatrixType::Random(row,col);
+  // dMatrixType S = dMatrixType::Random(row,col);
+  // dMatrixType vT = dMatrixType::Random(row,col);
   dMatrixType U, S, vT;
   arpackSVD(row, col, H, k, U, vT, S, 0.0e0);
   std::cout << "Compare to LAPACK(left column):" << std::endl;
   int n = row <= col ? row : col;
+  assert( k < n );
   double* U2 = new double[row*n];
   double* S2 = new double[n];
   double* vT2 = new double[n*col];
@@ -54,20 +71,43 @@ int main(int argc, char const *argv[]) {
   Eigen::Map<dMatrixType> Us2(U2, row, n);
   Eigen::Map<dMatrixType> vTs2(vT2, n, col);
   Eigen::Map<dVectorType> Sv(S2, n);
+  dMatrixType Sm = Sv.asDiagonal();
   for (size_t i = 0; i < k; i++) {
     std::cout << std::scientific << Sv(i) << " " << S(i,i) << std::endl;
   }
-  std::cout << "check unitary" << std::endl;
-  std::cout << "from arpack - U" << std::endl;
-  std::cout << U.adjoint() * U << std::endl;
-  std::cout << "from arpack - vT" << std::endl;
-  std::cout << vT * vT.adjoint() << std::endl;
-  std::cout << "from lapack - vT" << std::endl;
-  std::cout << vTs2 * vTs2.adjoint() << std::endl;
+  if ( n < 11 ) {
+    /* code */
+    std::cout << "check unitary" << std::endl;
+    std::cout << "from arpack - U" << std::endl;
+    std::cout << U.adjoint() * U << std::endl;
+    std::cout << "from arpack - vT" << std::endl;
+    std::cout << vT * vT.adjoint() << std::endl;
+    std::cout << "from lapack - vT" << std::endl;
+    std::cout << vTs2 * vTs2.adjoint() << std::endl;
+    for (size_t cnt = 0; cnt < k; cnt++) {
+      dVectorType Uvec1 = U.col(cnt);
+      dVectorType Uvec2 = Us2.col(cnt);
+      std::cout << Uvec1.adjoint() * Uvec2 << std::endl;
+      // assert( Uvec1.isApprox(Uvec2, 1.0e-10) );
+    }
+    std::cin.get();
+  }else{
+    dMatrixType work1 = U.adjoint() * U;
+    assert( work1.isApprox(dMatrixType::Identity(work1.rows(), work1.cols())) );
+    dMatrixType work2 = vT * vT.adjoint();
+    assert( work2.isApprox(dMatrixType::Identity(work2.rows(), work2.cols())) );
+    for (size_t cnt = 0; cnt < k; cnt++) {
+      dVectorType Uvec1 = U.col(cnt);
+      dVectorType Uvec2 = Us2.col(cnt);
+      assert( std::abs(Uvec1.adjoint() * Uvec2) - 1.0e0 < 1.0e-10 );
+    }
+  }
 
   std::cout << std::endl << "Complex Type" << std::endl;
-
   zMatrixType zH = zMatrixType::Random(row,col);
+  // zMatrixType zU = zMatrixType::Random(row,col);
+  // zMatrixType zvT = zMatrixType::Random(row,col);
+  // dMatrixType zS = dMatrixType::Random(row,col);;
   zMatrixType zU, zvT;
   dMatrixType zS;
   arpackSVD(row, col, zH, k, zU, zvT, zS, 0.0e0);
@@ -82,13 +122,35 @@ int main(int argc, char const *argv[]) {
   for (size_t i = 0; i < k; i++) {
     std::cout << std::scientific << zSv(i) << " " << zS(i,i) << std::endl;
   }
-  std::cout << "check unitary" << std::endl;
-  std::cout << "from arpack - U" << std::endl;
-  std::cout << zU.adjoint() * zU << std::endl;
-  std::cout << "from arpack - vT" << std::endl;
-  std::cout << zvT * zvT.adjoint() << std::endl;
-  std::cout << "from lapack - vT" << std::endl;
-  std::cout << zvTs2 * zvTs2.adjoint() << std::endl;
+  if ( n < 11 ) {
+    /* code */
+    std::cout << "check unitary" << std::endl;
+    std::cout << "from arpack - U" << std::endl;
+    std::cout << zU.adjoint() * zU << std::endl;
+    std::cout << "from arpack - vT" << std::endl;
+    std::cout << zvT * zvT.adjoint() << std::endl;
+    std::cout << "from lapack - vT" << std::endl;
+    std::cout << zvTs2 * zvTs2.adjoint() << std::endl;
+    for (size_t cnt = 0; cnt < k; cnt++) {
+      zVectorType Uvec1 = zU.col(cnt);
+      zVectorType Uvec2 = zUs2.col(cnt);
+      ComplexType inner = Uvec1.adjoint() * Uvec2;
+      std::cout << std::abs(inner) << std::endl;
+      // assert( Uvec1.isApprox(Uvec2, 1.0e-10) );
+    }
+    std::cin.get();
+  }else{
+    zMatrixType work1 = zU.adjoint() * zU;
+    assert( work1.isApprox(dMatrixType::Identity(work1.rows(), work1.cols())) );
+    zMatrixType work2 = zvT * zvT.adjoint();
+    assert( work2.isApprox(dMatrixType::Identity(work2.rows(), work2.cols())) );
+    for (size_t cnt = 0; cnt < k; cnt++) {
+      zVectorType Uvec1 = zU.col(cnt);
+      zVectorType Uvec2 = zUs2.col(cnt);
+      ComplexType inner = Uvec1.adjoint() * Uvec2;
+      // assert( std::abs(inner) - 1.0e0 < 1.0e-10 );
+    }
+  }
 
   delete [] zvT2;
   delete [] zS2;

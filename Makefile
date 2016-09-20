@@ -23,13 +23,12 @@ else ifeq ("$(NODE)", "kagome.rcc.ucmerced.edu")
 else ifeq ("$(NODE)", "edgestate.rcc.ucmerced.edu")
 	EIGENINC = /usr/local/include
 	MKLROOT = /opt/intel/composer_xe_2015.2.164/mkl
-	# LAPACK = -lmkl_rt -larpack
 	LAPACK = $(MKLROOT)/lib/intel64/libmkl_blas95_lp64.a \
 	$(MKLROOT)/lib/intel64/libmkl_lapack95_lp64.a -Wl,--start-group \
-	$(MKLROOT)/lib/intel64/libmkl_intel_lp64.a \
-	$(MKLROOT)/lib/intel64/libmkl_sequential.a $(MKLROOT)/lib/intel64/libmkl_core.a \
-	-Wl,--end-group -lpthread -lm -larpack
-	CC = icpc -O3 -Wall -std=c++11 -I./ -I$(EIGENINC) -DMKL
+	${MKLROOT}/lib/intel64/libmkl_intel_lp64.a \
+	${MKLROOT}/lib/intel64/libmkl_core.a \
+	${MKLROOT}/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -lpthread -lm -larpack
+	CC = icpc -qopenmp -O3 -Wall -std=c++11 -I./ -I$(EIGENINC) -DMKL
 endif
 
 BUILD_DIR = ./build
